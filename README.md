@@ -15,3 +15,7 @@ bedtime: 04.12.2023 22:00:35
 ```
 
 EU time format is used, but this is easily changed.
+
+The output looks like this:
+![The graph](/act1.PNG)
+Note, that this is not how actigraph for normal person should look like...
