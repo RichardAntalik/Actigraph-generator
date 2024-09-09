@@ -22,6 +22,8 @@ def parse(log):
             break
         entry = entry.replace("bedtime: ", "bedtime|")
         entry = entry.replace("wakeup: ", "wakeup|")
+        entry = entry.replace(" #", "|")
+        entry = entry.replace("#", "|")
         entry = entry.split('|')
         date = datetime.datetime.strptime(entry[1], entry_time_fmt)
         entries.append([entry[0], date])
