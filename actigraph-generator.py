@@ -1,17 +1,19 @@
+import PIL.ImageColor
 import numpy as np 
 import datetime
 import math
-from PIL import Image as im, ImageDraw, ImageFont
+from PIL import Image as im, ImageDraw, ImageFont, ImageColor as imCol
 
 # Globals
 log_file = "/home/me/sleep_log.txt"
 entry_time_fmt = "%d.%m.%Y %H:%M:%S"
 time_scale = 10
 day_scale = 4
-activity_color = 85
+activity_color = [85, 85, 85]
 padding_date = 90
 padding_time = 60
-
+special_grid_color=(70, 120, 0)
+special_text_color=(0, 200, 0)
 
 def parse(log):
     log = log.split('\n')
@@ -37,13 +39,13 @@ def parse(log):
 
 
 def make_img(entries):
-    bg_col = 255
+    bg_col = [255, 255, 255]
     width = 24 * time_scale + padding_date
     start_date = entries[0][1]
     end_date = entries[len(entries)-1][1]
     num_lines = (end_date - start_date).days + 1
     height = num_lines * day_scale + padding_time
-    return np.full((width, height), bg_col, np.uint8)
+    return np.full((width, height, 3), bg_col, np.uint8)
 
 
 def fill_range(day_offset, hour_start, hour_end, image, col):
@@ -53,16 +55,22 @@ def fill_range(day_offset, hour_start, hour_end, image, col):
     time_pix_start = int(hour_start * time_scale) + padding_date
     time_pix_end = int(hour_end * time_scale) + padding_date
     time_range = slice(time_pix_start, time_pix_end)
-    x = np.flip(image.T[day_range])
-    x.T[time_range] = col
+
+    img_rot = np.rot90(np.flip(image))
+    day_column = img_rot[day_range]
+    np.rot90(day_column, k=-1)[time_range] = col
+
+
+def remap(x, in_min, in_max, out_min, out_max):
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 
 
 def draw_grid(image, entries):
     width = image.width
     height = image.height
     draw = ImageDraw.Draw(image)
-    day_labels_img = im.new('L', (height, width), 255)
-    dl_draw = ImageDraw.Draw(day_labels_img)
+    day_labels_img = im.new('RGB', (height, width), imCol.getrgb("#FFFFFF"))
+    dl_draw = ImageDraw.Draw(day_labels_img, mode='RGB')
     font_size = 10
     font = ImageFont.truetype("FreeMono", size=font_size)
     
@@ -73,7 +81,7 @@ def draw_grid(image, entries):
 
         if day.strftime("%a") == "Sun" or first:
             date = day.strftime("%d.%m.%Y")
-            dl_draw.text((20, x), date, font=font, align="center")
+            dl_draw.text((20, x), date, font=font, align="center", fill=0)
             first = False
         day += datetime.timedelta(days=1)
 
@@ -82,15 +90,24 @@ def draw_grid(image, entries):
     day_labels_img = day_labels_img.crop((0, height - padding_date, width, height))
     image.paste(day_labels_img, (0, height - padding_date))
     
-    hour = 23
-    for y in range(time_scale, height - padding_date + 1 , time_scale):
-        draw.line([padding_time, y, width, y], 0)
+    for hour in range(0, 24):
+        y = int(remap(hour, 0, 23, height - padding_date , time_scale))
+
+        if hour % 4 == 0:
+            grid_color = special_grid_color
+            text_color = special_text_color
+        else:
+            grid_color = (0,0,0)
+            text_color = (0,0,0)
+
+        draw.line([padding_time, y, width, y], fill=grid_color)
 
         # Stoopid!
         alignment = 10
         if hour < 10:
             alignment -= font_size / 2
-        draw.text((padding_time-font_size - alignment, y-font_size/2), str(hour), font=font, align="left")
+
+        draw.text((padding_time-font_size - alignment, y-font_size/2), str(hour), font=font, align="left", fill=text_color)
         hour = hour - 1
 
 
@@ -103,7 +120,7 @@ def make_actigraph(entries):
         entry_start = entries[i][1]
         if entry_start.date().strftime("%a") == "Sun":
             day_offset = (entry_start.date() - start_day).days
-            fill_range(day_offset, 0, 24, array, 200)
+            fill_range(day_offset, 0, 24, array, [200, 200, 200])
 
 
     for i in range(0, len(entries) - 1, 2):
